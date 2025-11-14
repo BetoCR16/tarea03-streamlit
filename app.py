@@ -117,13 +117,13 @@ fig_incendios_mensual = px.line(
     frecuencia_mensual,
     x='month',
     y='Frecuencia',
-    labels={'month': 'Mes', 'Frecuencia': 'Cantidad de incendios'},
-    title='Incendios por mes (2020–2024)',
+    labels={'month': 'Mes', 'Frecuencia': 'Cantidad de focos de calor detectados'},
+    title='Focos de calor detectados a lo largo del tiempo (meses)',
     markers=True
 )
 fig_incendios_mensual.update_xaxes(dtick=1)
 
 # Mostrar el gráfico
-st.subheader('Tendencia de focos de calor (incendios) en Costa Rica (2020-2024)')
+st.subheader('Tendencia mensual de focos de calor (incendios) en Costa Rica (2020–2024)')
 st.plotly_chart(fig_incendios_mensual)
 
