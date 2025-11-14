@@ -1,13 +1,11 @@
-import streamlit as st
+import folium
 import pandas as pd
-# Carga de la clase WebFeatureService del módulo wfs de owslib
-# Permite interactuar con servicios web geoespaciales tipo WFS
-from owslib.wfs import WebFeatureService
-# Carga de geopandas con el alias gdp
 import geopandas as gpd
-from io import BytesIO
-
 import plotly.express as px
+import streamlit as st
+from streamlit_folium import st_folium
+from owslib.wfs import WebFeatureService
+from io import BytesIO
 
 # Fuentes de datos
 
@@ -118,7 +116,7 @@ fig_incendios_mensual = px.line(
     x='month',
     y='Frecuencia',
     labels={'month': 'Mes', 'Frecuencia': 'Cantidad de focos de calor detectados'},
-    title='Focos de calor detectados a lo largo del tiempo (meses)',
+    title='Focos de calor detectados a lo largo del tiempo (meses) (2020-2024)',
     markers=True
 )
 fig_incendios_mensual.update_xaxes(dtick=1)
@@ -127,3 +125,54 @@ fig_incendios_mensual.update_xaxes(dtick=1)
 st.subheader('Tendencia mensual de focos de calor (incendios) en Costa Rica (2020–2024)')
 st.plotly_chart(fig_incendios_mensual)
 
+## MAPA
+
+conteo_por_area = (
+    datos_incendios_por_area.groupby("nombre_ac")
+    .size()
+    .reset_index(name="frecuencia")
+)
+
+# Unir los datos de casos con GeoDataFrame
+areas_merged = areas_conservacion_gdf.merge(
+    conteo_por_area,  
+    on='nombre_ac',
+    how='left'
+)
+
+# Crear una paleta de colores
+from branca.colormap import linear
+paleta_colores = linear.YlOrRd_09.scale(areas_merged['frecuencia'].min(), areas_merged['frecuencia'].max())
+
+mapa = folium.Map()
+
+# Añadir los polígonos al mapa
+folium.GeoJson(
+    areas_merged,
+    name='Cantidad de focos de calor por área de conservación',
+    style_function=lambda feature: {
+        'fillColor': paleta_colores(feature['properties']['frecuencia']),
+        'color': 'black',
+        'weight': 0.5,
+        'fillOpacity': 0.7,
+    },
+    highlight_function=lambda feature: {
+        'weight': 3,
+        'color': 'black',
+        'fillOpacity': 0.9,
+    },
+    tooltip=folium.features.GeoJsonTooltip(
+        fields=['nombre_ac', 'frecuencia'],
+        aliases=['Área de conservación: ', 'Cantidad de focos de calor detectados: '],
+        localize=True
+        )
+).add_to(mapa)
+
+# Agregar el control de capas al mapa
+folium.LayerControl().add_to(mapa)
+
+# Mostrar el mapa
+st.subheader('Mapa de casos totales por país')
+
+# Forma antigua
+st_folium(mapa)
