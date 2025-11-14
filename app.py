@@ -4,12 +4,16 @@ import geopandas as gpd
 import plotly.express as px
 import streamlit as st
 from streamlit_folium import st_folium
+from streamlit_folium import folium_static
 from owslib.wfs import WebFeatureService
 from io import BytesIO
 
 # Fuentes de datos
 
 DATOS_FIRMS = "data/incendios_2020-2024_costa_rica.csv"
+
+st.title('Focos de calor (incendios) detectados en Costa Rica utilizando FIRMS (2020–2024)')
+st.write("— *Aplicación desarrollada por Roberto Méndez*")
 
 
 # Carga de datos
@@ -144,7 +148,10 @@ areas_merged = areas_conservacion_gdf.merge(
 from branca.colormap import linear
 paleta_colores = linear.YlOrRd_09.scale(areas_merged['frecuencia'].min(), areas_merged['frecuencia'].max())
 
-mapa = folium.Map()
+mapa = folium.Map(
+    location=[9.7489, -83.7534], #Costa Ricac
+    zoom_start=7
+    )
 
 # Añadir los polígonos al mapa
 folium.GeoJson(
@@ -172,7 +179,7 @@ folium.GeoJson(
 folium.LayerControl().add_to(mapa)
 
 # Mostrar el mapa
-st.subheader('Mapa de casos totales por país')
+st.subheader('Mapa de cantidad de focos de calor en áreas de conservación de Costa Rica')
 
 # Forma antigua
-st_folium(mapa)
+folium_static(mapa)
