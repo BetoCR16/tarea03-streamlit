@@ -39,6 +39,15 @@ areas_conservacion_gdf = gpd.read_file(BytesIO(respuesta.read())).to_crs(epsg=43
 
 ### Organizacion de datos
 
+## Conversion de fechas
+datos_incendios['acq_date'] = pd.to_datetime(datos_incendios['acq_date'])
+datos_incendios['acq_time'] = datos_incendios['acq_time'].astype(str).str.zfill(4)
+datos_incendios['complete_date'] = pd.to_datetime(
+    datos_incendios['acq_date'].dt.strftime('%Y-%m-%d') + ' ' +
+    datos_incendios['acq_time'].str[:2] + ':' +
+    datos_incendios['acq_time'].str[2:]
+)
+
 # Convertir datos de incendios a geodataframe
 datos_incendios_gdf = gpd.GeoDataFrame(
     datos_incendios,
@@ -54,15 +63,6 @@ datos_incendios_por_area = gpd.sjoin(
     predicate="within"
 )
 
-## Conversion de fechas
-datos_incendios['acq_date'] = pd.to_datetime(datos_incendios['acq_date'])
-datos_incendios['acq_time'] = datos_incendios['acq_time'].astype(str).str.zfill(4)
-datos_incendios['complete_date'] = pd.to_datetime(
-    datos_incendios['acq_date'].dt.strftime('%Y-%m-%d') + ' ' +
-    datos_incendios['acq_time'].str[:2] + ':' +
-    datos_incendios['acq_time'].str[2:]
-)
-
 # Columnas relevantes
 columnas = [
     'complete_date',
@@ -71,12 +71,14 @@ columnas = [
     'brightness',
     'confidence',
     'frp',
-    'daynight'
+    'daynight',
+    'nombre_ac'
 ]
-datos_incendios = datos_incendios[columnas]
+datos_incendios_por_area_tabla = datos_incendios_por_area[columnas]
 
-datos_incendios = datos_incendios.rename(columns={
+datos_incendios_por_area_tabla = datos_incendios_por_area_tabla.rename(columns={
     'complete_date': 'Fecha',
+    'nombre_ac': 'Área de Conservación',
     'latitude': 'Latitud',
     'longitude': 'Longitud',
     'brightness': 'Brillo',
@@ -85,35 +87,43 @@ datos_incendios = datos_incendios.rename(columns={
     'daynight': 'Día/Noche'
 })
 
-
-
 ## TABLA
-st.subheader('Datos de incendios en Costa Rica 2020 - 2024')
-st.dataframe(datos_incendios, hide_index=True)
+st.subheader('Datos de focos de calor detectados (incendios) por área de conservación en Costa Rica (2020 - 2024)')
+st.dataframe(datos_incendios_por_area_tabla, hide_index=True)
 
 ### GRAFICO
 
-# Creación de columna con solo el año
-datos_incendios['Año'] = datos_incendios['Fecha'].dt.year
+# Creación de columna para meses
+datos_incendios['month_num'] = datos_incendios['complete_date'].dt.month
 
-# Conteo de incendios por cada año
-conteo_incendios_por_anyo = (
-    datos_incendios.groupby('Año')
-    .size()
-    .reset_index(name='Frecuencia')
-    .rename(columns={'year': 'Año'})
-)
+# Pasar numero de mes a texto
+# Se realiza de esta forma dado que month_name presenta un error 
+# sobre locale setting
+traductor_meses = {
+    1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 
+    5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto', 
+    9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+}
 
-fig_incendios_anuales = px.line(
-    conteo_incendios_por_anyo,
-    x='Año',
+# Aplicar el mapeo para crear la columna 'Mes'
+datos_incendios['month'] = datos_incendios['month_num'].map(traductor_meses)
+
+
+# Conteo de focos de calor 
+frecuencia_mensual = datos_incendios.groupby(['month_num', 'month']).size().reset_index(name='Frecuencia')
+
+# Creacion de gráfico
+fig_incendios_mensual = px.line(
+    frecuencia_mensual,
+    x='month',
     y='Frecuencia',
-    title='Focos de calor detectados a lo largo del tiempo',
-    labels={'Frecuencia':'Cantidad de focos de calor detectados'}
+    labels={'month': 'Mes', 'Frecuencia': 'Cantidad de incendios'},
+    title='Incendios por mes (2020–2024)',
+    markers=True
 )
-fig_incendios_anuales.update_xaxes(dtick=1)
+fig_incendios_mensual.update_xaxes(dtick=1)
 
 # Mostrar el gráfico
 st.subheader('Tendencia de focos de calor (incendios) en Costa Rica (2020-2024)')
-st.plotly_chart(fig_incendios_anuales)
+st.plotly_chart(fig_incendios_mensual)
 
