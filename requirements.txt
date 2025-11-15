@@ -4,3 +4,4 @@ plotly
 geopandas
 folium
 streamlit-folium
+owslib
