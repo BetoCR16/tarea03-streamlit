@@ -179,10 +179,6 @@ with st.spinner("Cargando mapa, por favor espere..."):
             )
     ).add_to(mapa)
 
-    # Añadir la leyenda al mapa
-    paleta_colores.caption = 'Cantidad de focos de calor detectados'
-    paleta_colores.add_to(mapa)
-
     # Agregar el control de capas al mapa
     folium.LayerControl().add_to(mapa)
 
