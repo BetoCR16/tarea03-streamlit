@@ -66,6 +66,27 @@ with st.spinner("*⏳ Preparación de datos...*"):
         predicate="within"
     )
 
+    ## LATERAL
+    # Obtener la lista de países únicos
+    lista_areas_conservacion = datos_incendios_por_area['nombre_ac'].unique().tolist()
+    #lista_areas_conservacion.sort()
+
+    # Añadir la opción "Todos" al inicio de la lista
+    opciones_areas = ['Todos'] + lista_areas_conservacion
+
+    # Crear el selectbox en la barra lateral
+    area_seleccionada = st.sidebar.selectbox(
+        'Selecciona un país',
+        opciones_areas
+    )
+
+    if area_seleccionada != 'Todos':
+        # Filtrar los datos para el país seleccionado
+        datos_filtrados = datos_incendios_por_area[datos_incendios_por_area['nombre_ac'] == area_seleccionada]
+    else:
+        # No aplicar filtro
+        datos_filtrados = datos_incendios_por_area.copy()
+
     # Columnas relevantes
     columnas = [
         'complete_date',
@@ -77,7 +98,7 @@ with st.spinner("*⏳ Preparación de datos...*"):
         'daynight',
         'nombre_ac'
     ]
-    datos_incendios_por_area_tabla = datos_incendios_por_area[columnas]
+    datos_incendios_por_area_tabla = datos_filtrados[columnas]
 
     datos_incendios_por_area_tabla = datos_incendios_por_area_tabla.rename(columns={
         'complete_date': 'Fecha',
@@ -90,6 +111,8 @@ with st.spinner("*⏳ Preparación de datos...*"):
         'daynight': 'Día/Noche'
     })
 st.write("*Datos listos ✅*")
+
+
 
 ## TABLA
 st.subheader('Datos de focos de calor detectados (incendios) por área de conservación en Costa Rica (2020 - 2024)')
@@ -188,3 +211,7 @@ with st.spinner("Cargando mapa, por favor espere..."):
 
     # Mostrar mapa forma antigua
     folium_static(mapa)
+
+
+
+
