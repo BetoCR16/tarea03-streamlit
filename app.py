@@ -255,6 +255,26 @@ fig_canton_2024.update_layout(
 st.subheader('Cantidad de focos de calor detectados por cantón en Costa Rica durante 2024')
 st.plotly_chart(fig_canton_2024)
 
+## --- GRAFICO COBERTURA ---
+
+frecuencia_por_bosque = datos_preprocesados.groupby('Clase').size().reset_index(name='Frecuencia')
+
+fig_cobertura = px.bar(
+    frecuencia_por_bosque, 
+    x='Clase',               # El Cantón en el eje X
+    y='Frecuencia',               # El Conteo (frecuencia) en el eje Y
+    orientation='v',          # Barras verticales
+    title='Focos de calor detectados por tipo de bosque en Costa Rica (2020-2024)',
+    labels={'Clase': 'Tipo de bosque', 'Frecuencia': 'Cantidad de focos de calor'},
+    color='Frecuencia',           # Coloreamos las barras según la frecuencia
+    color_continuous_scale=px.colors.sequential.Viridis # Escala de color
+)
+fig_cobertura.update_layout(
+    xaxis={'categoryorder': 'total descending'} 
+)
+st.subheader('Cantidad de focos de calor detectados por tipo de bosque en Costa Rica (2020 - 2024)')
+st.plotly_chart(fig_cobertura)
+
 ## MAPA
 st.subheader('Mapa de cantidad de focos de calor en áreas de conservación de Costa Rica')
 
