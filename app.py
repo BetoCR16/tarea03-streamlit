@@ -7,11 +7,12 @@ from streamlit_folium import folium_static
 from streamlit_folium import st_folium
 from owslib.wfs import WebFeatureService
 from io import BytesIO
+from folium.plugins import MarkerCluster
 
 # Fuentes de datos
 
 DATOS_FIRMS = "data/incendios_2020-2024_costa_rica.csv"
-#DATOS_COBERTURA_2023 = "data/40meters.gpkg"
+DATOS_COBERTURA_2023 = "data/datos_completos_preprocesados.gpkg"
 
 st.title('Focos de calor (incendios) detectados en Costa Rica utilizando FIRMS (2020–2024)')
 st.write("— *Aplicación desarrollada por Roberto Méndez*")
@@ -24,9 +25,13 @@ def cargar_datos_incendios():
     datos = pd.read_csv(DATOS_FIRMS)
     return datos
 
-# def carga_cobertura_forestal():
-#     cobertura_forestal = gpd.read_file(DATOS_COBERTURA_2023).to_crs(epsg=4326)
-#     return cobertura_forestal
+@st.cache_data
+def cargar_datos_cobertura_forestal():
+    datos_preprocesados = gpd.read_file(
+    DATOS_COBERTURA_2023
+    ).to_crs(epsg=4326)
+    return datos_preprocesados
+
 @st.cache_data
 def cargar_wfs(url, capa, version="1.1.0", epsg=4326):
     """
@@ -57,6 +62,8 @@ with st.spinner("*⏳ Carga de datos...*"):
         url='https://geos.snitcr.go.cr/be/IGN_5_CO/wfs',
         capa='IGN_5_CO:limitecantonal_5k'
     )
+
+    datos_preprocesados = cargar_datos_cobertura_forestal()
 
 st.write("*Datos cargados ✅*")
 
@@ -331,8 +338,48 @@ with st.spinner("Cargando mapa, por favor espere..."):
 
     # Mostrar mapa forma antigua
     folium_static(mapa)
+
+    st.subheader('Mapa de cantidad de focos de calor en cantones de Costa Rica')
+
     folium_static(mapa_cantones)
 
+# --- MAPA DE PUNTOS FORESTAL ---
+mapa_forestal = folium.Map(
+    location=[9.9328,-84.0795],
+    zoom_start=7,
+    control_scale=True
+)
 
+marker_cluster = MarkerCluster().add_to(mapa_forestal)
+
+for index, row in datos_preprocesados.iterrows():
+    # Creamos el texto del Popup usando las variables que sí tenemos
+    popup_text = f"""
+    Foco de Incendio<br>
+    FRP (Poder Radiativo): {row['frp']:.1f} MW<br>
+    Fecha de Detección: {row['acq_date'].strftime('%Y-%m-%d')}<br>
+    Confianza: {row['confidence']}<br>
+    Coordenadas: {row['latitude']:.2f}, {row['longitude']:.2f}
+    """
+    
+    # Asignamos color del ícono basado en la confianza (ejemplo)
+    if row['confidence'] == 'h':
+        color = 'red'
+    elif row['confidence'] == 'n':
+        color = 'orange'
+    else:
+        color = 'darkblue'
+
+    folium.Marker(
+        location=[row['latitude'], row['longitude']],
+        popup=folium.Popup(popup_text, max_width=300),
+        tooltip=f"FRP: {row['frp']:.1f} MW",
+        icon=folium.Icon(color=color, icon='fire', prefix='fa')
+    ).add_to(marker_cluster)
+
+
+st.subheader('Mapa de puntos de calor detectados en Costa Rica (2020-2024)')
+
+folium_static(mapa_forestal)
 
 
