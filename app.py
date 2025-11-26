@@ -73,41 +73,32 @@ def sjoin_clean(left, right, how="left", predicate="intersects"):
     return out.drop(columns=["index_right"], errors="ignore")
 
 with st.spinner("*⏳ Preparación de datos...*"):
-    @st.cache_data
-    def data_preparation():
-        ## Conversion de fechas
-        datos_incendios['acq_date'] = pd.to_datetime(datos_incendios['acq_date'])
-        datos_incendios['acq_time'] = datos_incendios['acq_time'].astype(str).str.zfill(4)
-        datos_incendios['complete_date'] = pd.to_datetime(
-            datos_incendios['acq_date'].dt.strftime('%Y-%m-%d') + ' ' +
-            datos_incendios['acq_time'].str[:2] + ':' +
-            datos_incendios['acq_time'].str[2:]
-        )
+    # @st.cache_data
+    # def data_preparation():
+    #     ## Conversion de fechas
+    #     datos_incendios['acq_date'] = pd.to_datetime(datos_incendios['acq_date'])
+    #     datos_incendios['acq_time'] = datos_incendios['acq_time'].astype(str).str.zfill(4)
+    #     datos_incendios['complete_date'] = pd.to_datetime(
+    #         datos_incendios['acq_date'].dt.strftime('%Y-%m-%d') + ' ' +
+    #         datos_incendios['acq_time'].str[:2] + ':' +
+    #         datos_incendios['acq_time'].str[2:]
+    #     )
 
-        # Conversión a GeoDataFrame
-        datos_incendios_gdf = gpd.GeoDataFrame(
-            datos_incendios,
-            geometry = gpd.points_from_xy(
-                datos_incendios["longitude"],
-                datos_incendios["latitude"]
-            ),
-            crs="EPSG:4326"
-        )
+    #     # Conversión a GeoDataFrame
+    #     datos_incendios_gdf = gpd.GeoDataFrame(
+    #         datos_incendios,
+    #         geometry = gpd.points_from_xy(
+    #             datos_incendios["longitude"],
+    #             datos_incendios["latitude"]
+    #         ),
+    #         crs="EPSG:4326"
+    #     )
 
-        # Uniones
-        datos_incendios_por_area = sjoin_clean(datos_incendios_gdf, areas_conservacion_gdf)
-        return sjoin_clean(datos_incendios_por_area, cantones_gdf).dropna(subset=["nombre_ac"])
+    #     # Uniones
+    #     datos_incendios_por_area = sjoin_clean(datos_incendios_gdf, areas_conservacion_gdf)
+    #     return sjoin_clean(datos_incendios_por_area, cantones_gdf).dropna(subset=["nombre_ac"])
 
-    datos_incendios_completo = data_preparation()
-
-
-    # datos_incendios_por_cobertura = gpd.sjoin(
-    #     datos_incendios_gdf,
-    #     cobertura_forestal_2023,
-    #     how="left",
-    #     predicate="within"
-    # )
-
+    datos_incendios_completo = datos_preprocesados.copy()
 
 st.write("*Datos listos ✅*")
 
@@ -125,8 +116,6 @@ area_seleccionada = st.sidebar.selectbox(
     'Selecciona un área de conservación',
     opciones_areas
 )
-
-
 
 # --- FILTROS DEPENDIENTES ---
 df_temp = datos_incendios_completo.copy()
@@ -193,7 +182,7 @@ datos_incendios_tabla = datos_incendios_tabla.rename(columns={
     'daynight': 'Día/Noche',
     'CANTÓN': 'Cantón'
 })
-st.subheader('Datos de focos de calor detectados (incendios) por área de conservación en Costa Rica (2020 - 2024)')
+st.subheader('Datos de focos de calor detectados (incendios) en Costa Rica (2020 - 2024)')
 st.dataframe(datos_incendios_tabla, hide_index=True)
 
 ### GRAFICO
@@ -276,7 +265,7 @@ st.subheader('Cantidad de focos de calor detectados por tipo de bosque en Costa 
 st.plotly_chart(fig_cobertura)
 
 ## MAPA
-st.subheader('Mapa de cantidad de focos de calor en áreas de conservación de Costa Rica')
+st.subheader('Mapa de cantidad de focos de calor en áreas de conservación de Costa Rica (2020 - 2024)')
 
 with st.spinner("Cargando mapa, por favor espere..."):
     conteo_por_area = (
@@ -387,42 +376,45 @@ with st.spinner("Cargando mapa, por favor espere..."):
     folium_static(mapa_cantones)
 
 # --- MAPA DE PUNTOS FORESTAL ---
-mapa_forestal = folium.Map(
-    location=[9.9328,-84.0795],
-    zoom_start=7,
-    control_scale=True
-)
+@st.cache_data
+def create_forest_map(_datos):
+    if 'map' not in st.session_state or st.session_state.map is None:
+        mapa_forestal = folium.Map(
+            location=[9.9328,-84.0795],
+            zoom_start=7,
+            control_scale=True
+        )
+        marker_cluster = MarkerCluster().add_to(mapa_forestal)
+        for index, row in _datos.iterrows():
+            # Creamos el texto del Popup usando las variables que sí tenemos
+            popup_text = f"""
+            Foco de Incendio<br>
+            FRP (Poder Radiativo): {row['frp']:.1f} MW<br>
+            Fecha de Detección: {row['acq_date'].strftime('%Y-%m-%d')}<br>
+            Confianza: {row['confidence']}<br>
+            Coordenadas: {row['latitude']:.2f}, {row['longitude']:.2f}
+            """
+            
+            # Asignamos color del ícono basado en la confianza (ejemplo)
+            if row['confidence'] == 'h':
+                color = 'red'
+            elif row['confidence'] == 'n':
+                color = 'orange'
+            else:
+                color = 'darkblue'
 
-marker_cluster = MarkerCluster().add_to(mapa_forestal)
+            folium.Marker(
+                location=[row['latitude'], row['longitude']],
+                popup=folium.Popup(popup_text, max_width=300),
+                tooltip=f"FRP: {row['frp']:.1f} MW",
+                icon=folium.Icon(color=color, icon='fire', prefix='fa')
+            ).add_to(marker_cluster)
+        
+        st.session_state.map = mapa_forestal  # Save the map in the session state
+    return st.session_state.map
 
-for index, row in datos_preprocesados.iterrows():
-    # Creamos el texto del Popup usando las variables que sí tenemos
-    popup_text = f"""
-    Foco de Incendio<br>
-    FRP (Poder Radiativo): {row['frp']:.1f} MW<br>
-    Fecha de Detección: {row['acq_date'].strftime('%Y-%m-%d')}<br>
-    Confianza: {row['confidence']}<br>
-    Coordenadas: {row['latitude']:.2f}, {row['longitude']:.2f}
-    """
-    
-    # Asignamos color del ícono basado en la confianza (ejemplo)
-    if row['confidence'] == 'h':
-        color = 'red'
-    elif row['confidence'] == 'n':
-        color = 'orange'
-    else:
-        color = 'darkblue'
-
-    folium.Marker(
-        location=[row['latitude'], row['longitude']],
-        popup=folium.Popup(popup_text, max_width=300),
-        tooltip=f"FRP: {row['frp']:.1f} MW",
-        icon=folium.Icon(color=color, icon='fire', prefix='fa')
-    ).add_to(marker_cluster)
-
-
-st.subheader('Mapa de puntos de calor detectados en Costa Rica (2020-2024)')
-
+st.subheader('Mapa de puntos de focos de calor detectados en Costa Rica (2020-2024)')
+mapa_forestal = create_forest_map(datos_preprocesados)
 folium_static(mapa_forestal)
 
 
