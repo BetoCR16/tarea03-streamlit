@@ -260,12 +260,15 @@ with st.spinner("Cargando mapa, por favor espere..."):
     from branca.colormap import linear
     paleta_colores_areas = linear.YlOrRd_09.scale(areas_merged['frecuencia'].min(), areas_merged['frecuencia'].max())
     paleta_colores_cantones = linear.YlOrRd_09.scale(canton_map['frecuencia'].min(), canton_map['frecuencia'].max())
-
-
-    mapa = folium.Map(
-        location=[9.7489, -83.7534], #Costa Rica
-        zoom_start=7
+    
+    def generar_mapas_base():
+        return folium.Map(
+            location=[9.7489, -83.7534], #Costa Rica
+            zoom_start=7
         )
+        
+    mapa = generar_mapas_base()
+    mapa_cantones = generar_mapas_base()
 
     # Crear columna para tooltip
     areas_merged["frecuencia_tooltip"] = areas_merged["frecuencia"].apply(
@@ -292,11 +295,6 @@ with st.spinner("Cargando mapa, por favor espere..."):
             localize=True
             )
     ).add_to(mapa)
-
-    mapa_cantones = folium.Map(
-        location=[9.7489, -83.7534], #Costa Rica
-        zoom_start=7
-        )
 
     folium.GeoJson(
         canton_map,
