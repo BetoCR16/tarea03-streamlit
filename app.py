@@ -101,70 +101,91 @@ with st.spinner("*⏳ Preparación de datos...*"):
     #     predicate="within"
     # )
 
-    ## LATERAL
-    # Obtener lista de áreas de conservación
-    lista_areas_conservacion = datos_incendios_completo['nombre_ac'].unique().tolist()
-    lista_cantones = datos_incendios_completo['CANTÓN'].unique().tolist()
-    #lista_areas_conservacion.sort()
 
-    # Añadir la opción "Todos" al inicio de la lista
-    opciones_areas = ['Todos'] + lista_areas_conservacion
-    opciones_cantones = ['Todos'] + lista_cantones
-
-    # Crear el selectbox en la barra lateral
-    area_seleccionada = st.sidebar.selectbox(
-        'Selecciona un área de conservación',
-        opciones_areas
-    )
-
-    # Crear el selectbox en la barra lateral
-    canton_seleccionado = st.sidebar.selectbox(
-        'Selecciona un cantón',
-        opciones_cantones
-    )
-
-    if area_seleccionada != 'Todos':
-        #Filtrar
-        datos_filtrados = datos_incendios_completo[datos_incendios_completo['nombre_ac'] == area_seleccionada]
-    else:
-        # No aplicar filtro
-        datos_filtrados = datos_incendios_completo.copy()
-
-    # Columnas relevantes
-    columnas = [
-        'complete_date',
-        'latitude', 
-        'longitude', 
-        'brightness',
-        'confidence',
-        'frp',
-        'daynight',
-        'nombre_ac',
-        'CANTÓN'
-    ]
-    datos_incendios_tabla = datos_filtrados[columnas]
-
-    datos_incendios_tabla = datos_incendios_tabla.rename(columns={
-        'complete_date': 'Fecha',
-        'nombre_ac': 'Área de Conservación',
-        'latitude': 'Latitud',
-        'longitude': 'Longitud',
-        'brightness': 'Brillo',
-        'frp': 'FRP',
-        'confidence': 'Confianza',
-        'daynight': 'Día/Noche',
-        'CANTÓN': 'Cantón'
-    })
 st.write("*Datos listos ✅*")
 
-# --- Filtros ---
-# areas = sorted(df["area_conservacion"].dropna().unique())
-# cantones = sorted(df["canton"].dropna().unique())
+## LATERAL
+# Obtener lista de áreas de conservación
+lista_areas_conservacion = datos_incendios_completo['nombre_ac'].unique().tolist()
+lista_cantones = datos_incendios_completo['CANTÓN'].unique().tolist()
 
-# filtro_area = st.selectbox("Filtrar por Área de Conservación", ["Todos"] + areas)
-# filtro_canton = st.selectbox("Filtrar por Cantón", ["Todos"] + cantones)
+# Añadir la opción "Todos" al inicio de la lista
+opciones_areas = ['Todos'] + lista_areas_conservacion
+opciones_cantones = ['Todos'] + lista_cantones
+
+# Crear el selectbox en la barra lateral
+area_seleccionada = st.sidebar.selectbox(
+    'Selecciona un área de conservación',
+    opciones_areas
+)
+
+
+
+# --- FILTROS DEPENDIENTES ---
+df_temp = datos_incendios_completo.copy()
+
+# Si eligen área, restringimos cantones
+if area_seleccionada != "Todos":
+    df_temp = datos_incendios_completo[datos_incendios_completo["nombre_ac"] == area_seleccionada]
+    cantones_filtrados = sorted(df_temp["CANTÓN"].dropna().unique())
+else:
+    cantones_filtrados = lista_cantones
+
+opciones_cantones = ["Todos"] + cantones_filtrados
+
+# Crear el selectbox en la barra lateral
+canton_seleccionado = st.sidebar.selectbox(
+    'Selecciona un cantón',
+    opciones_cantones
+)
+
+# Si eligen cantón, restringimos áreas
+if canton_seleccionado != "Todos":
+    df_temp = datos_incendios_completo[datos_incendios_completo["CANTÓN"] == canton_seleccionado]
+    areas_filtradas = sorted(df_temp["nombre_ac"].dropna().unique())
+else:
+    areas_filtradas = lista_areas_conservacion
+
+# --- VOLVER A MOSTRAR LOS SELECTBOX DE FORMA DEPENDIENTE ---
+opciones_areas = ["Todos"] + areas_filtradas
+
+
+datos_filtrados = datos_incendios_completo.copy()
+
+if area_seleccionada != 'Todos':
+    #Filtrar
+    datos_filtrados = datos_incendios_completo[datos_incendios_completo['nombre_ac'] == area_seleccionada]
+
+if canton_seleccionado != 'Todos':
+    #Filtrar
+    datos_filtrados = datos_incendios_completo[datos_incendios_completo['CANTÓN'] == canton_seleccionado]
 
 # ## TABLA
+# Columnas relevantes
+columnas = [
+    'complete_date',
+    'latitude', 
+    'longitude', 
+    'brightness',
+    'confidence',
+    'frp',
+    'daynight',
+    'nombre_ac',
+    'CANTÓN'
+]
+datos_incendios_tabla = datos_filtrados[columnas]
+
+datos_incendios_tabla = datos_incendios_tabla.rename(columns={
+    'complete_date': 'Fecha',
+    'nombre_ac': 'Área de Conservación',
+    'latitude': 'Latitud',
+    'longitude': 'Longitud',
+    'brightness': 'Brillo',
+    'frp': 'FRP',
+    'confidence': 'Confianza',
+    'daynight': 'Día/Noche',
+    'CANTÓN': 'Cantón'
+})
 st.subheader('Datos de focos de calor detectados (incendios) por área de conservación en Costa Rica (2020 - 2024)')
 st.dataframe(datos_incendios_tabla, hide_index=True)
 
