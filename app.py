@@ -219,7 +219,7 @@ with st.spinner("Cargando mapa, por favor espere..."):
         conteo_por_area,  
         on='nombre_ac',
         how='left'
-    )
+    ).fillna(0)
 
     # Crear una paleta de colores
     from branca.colormap import linear
@@ -230,6 +230,10 @@ with st.spinner("Cargando mapa, por favor espere..."):
         zoom_start=7
         )
 
+    # Crear columna para tooltip
+    areas_merged["frecuencia_tooltip"] = areas_merged["frecuencia"].apply(
+        lambda x: str(int(x)) if x > 0 else ""
+    )
     # Añadir los polígonos al mapa
     folium.GeoJson(
         areas_merged,
@@ -246,18 +250,11 @@ with st.spinner("Cargando mapa, por favor espere..."):
             'fillOpacity': 0.9,
         },
         tooltip=folium.features.GeoJsonTooltip(
-            fields=['nombre_ac', 'frecuencia'],
+            fields=['nombre_ac', 'frecuencia_tooltip'],
             aliases=['Área de conservación: ', 'Cantidad de focos de calor detectados: '],
             localize=True
             )
     ).add_to(mapa)
-
-
-    mapa_forestal = folium.Map(
-        location=[9.7489, -83.7534], #Costa Rica
-        zoom_start=7,
-    )
-    #folium.GeoJson(cobertura_forestal_2023).add_to(mapa)
 
     # Añadir la leyenda al mapa
     paleta_colores.caption = 'Cantidad de focos de calor detectados'
