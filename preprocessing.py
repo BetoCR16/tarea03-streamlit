@@ -38,6 +38,8 @@ cantones_gdf = cargar_wfs(
     capa='IGN_5_CO:limitecantonal_5k'
 )
 
+cobertura_forestal_gdf = gpd.read_file("data/cobertura_forestal_2023_simplificado.gpkg").to_crs(epsg=4326)
+
 print("DATOS CARGADOS! UNIENDO DATOS....")
 ### UNION DE DATOS
 
@@ -68,8 +70,17 @@ datos_incendios_por_area = gpd.sjoin(
 # Dropear index para segundo join
 datos_incendios_por_area = datos_incendios_por_area.drop(columns=["index_right"]) 
 
-datos_incendios_completo = gpd.sjoin(
+datos_incendios_cobertura = gpd.sjoin(
     datos_incendios_por_area,
+    cobertura_forestal_gdf,
+    how="left",
+    predicate="intersects"
+)
+
+datos_incendios_cobertura = datos_incendios_cobertura.drop(columns=["index_right"]) 
+
+datos_incendios_completo = gpd.sjoin(
+    datos_incendios_cobertura,
     cantones_gdf,
     how="left", 
     predicate="intersects"
@@ -77,7 +88,7 @@ datos_incendios_completo = gpd.sjoin(
 
 # Drop de datos nulos
 datos_incendios_completo = datos_incendios_completo.dropna(subset=["nombre_ac"])
-datos_incendios_completo = datos_incendios_completo.drop(columns=["OBJECTID"])
+datos_incendios_completo = datos_incendios_completo.drop(columns=["OBJECTID"], errors="ignore")
 
 
 print("LISTO! GUARDANDO EN GEOPACKAGE")
