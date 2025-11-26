@@ -68,10 +68,10 @@ def crear_cluster():
         ).add_to(marker_cluster)
 
     return marker_cluster
+with st.spinner("⏳ Generando mapa...", show_time=True):
+    markers = crear_cluster()
+    markers.add_to(mapa_forestal)
 
-markers = crear_cluster()
-markers.add_to(mapa_forestal)
-
-# Mostrar el mapa en Streamlit
-st_folium(mapa_forestal, height=600, width=800, key="mapa_forestal_2023",returned_objects=[])
+    # Mostrar el mapa en Streamlit
+    st_folium(mapa_forestal, height=600, width=800, key="mapa_forestal_2023",returned_objects=[])
 st.image("data/forest_map_legend.png")
