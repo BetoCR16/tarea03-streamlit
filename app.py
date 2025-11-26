@@ -214,12 +214,28 @@ with st.spinner("Cargando mapa, por favor espere..."):
         .reset_index(name="frecuencia")
     )
 
+    conteo_por_canton = (
+        datos_filtrados.groupby("CANTÓN")
+        .size()
+        .reset_index(name="frecuencia")
+    )
+
     # Unir los datos de casos con GeoDataFrame
     areas_merged = areas_conservacion_gdf.merge(
         conteo_por_area,  
         on='nombre_ac',
         how='left'
     ).fillna(0)
+
+    canton_merged = cantones_gdf.merge(
+        conteo_por_canton,  
+        on='CANTÓN',
+        how='left'
+    ).fillna(0)
+
+    canton_map = canton_merged[["geometry", "CANTÓN", "frecuencia"]].copy()
+
+
 
     # Crear una paleta de colores
     from branca.colormap import linear
@@ -252,6 +268,27 @@ with st.spinner("Cargando mapa, por favor espere..."):
         tooltip=folium.features.GeoJsonTooltip(
             fields=['nombre_ac', 'frecuencia_tooltip'],
             aliases=['Área de conservación: ', 'Cantidad de focos de calor detectados: '],
+            localize=True
+            )
+    ).add_to(mapa)
+
+    folium.GeoJson(
+        canton_map,
+        name='Cantidad de focos de calor por cantón',
+        style_function=lambda feature: {
+            'fillColor': paleta_colores(feature['properties']['frecuencia']),
+            'color': 'black',
+            'weight': 0.5,
+            'fillOpacity': 0.7,
+        },
+        highlight_function=lambda feature: {
+            'weight': 3,
+            'color': 'black',
+            'fillOpacity': 0.9,
+        },
+        tooltip=folium.features.GeoJsonTooltip(
+            fields=['CANTÓN', 'frecuencia'],
+            aliases=['Cantón: ', 'Cantidad de focos de calor detectados: '],
             localize=True
             )
     ).add_to(mapa)
