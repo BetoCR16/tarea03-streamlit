@@ -232,6 +232,29 @@ fig_incendios_mensual.update_xaxes(dtick=1)
 st.subheader('Tendencia mensual de focos de calor (incendios) en Costa Rica (2020–2024)')
 st.plotly_chart(fig_incendios_mensual)
 
+
+# --- GRAFICO DE BARRA CANTONES 2024 ---
+datos_filtrados['year'] = datos_filtrados['complete_date'].dt.year
+datos_2024 = datos_filtrados[datos_filtrados['year'] == 2024]
+
+frecuencia_por_canton = datos_2024.groupby('CANTÓN').size().reset_index(name='Frecuencia')
+
+fig_canton_2024 = px.bar(
+    frecuencia_por_canton, 
+    x='CANTÓN',               # El Cantón en el eje X
+    y='Frecuencia',               # El Conteo (frecuencia) en el eje Y
+    orientation='v',          # Barras verticales
+    title='Focos de calor detectados por cantón en Costa Rica durante 2024',
+    labels={'CANTÓN': 'Cantón', 'Frecuencia': 'Cantidad de focos de calor'},
+    color='Frecuencia',           # Coloreamos las barras según la frecuencia
+    color_continuous_scale=px.colors.sequential.Viridis # Escala de color
+)
+fig_canton_2024.update_layout(
+    xaxis={'categoryorder': 'total descending'} 
+)
+st.subheader('Cantidad de focos de calor detectados por cantón en Costa Rica durante 2024')
+st.plotly_chart(fig_canton_2024)
+
 ## MAPA
 st.subheader('Mapa de cantidad de focos de calor en áreas de conservación de Costa Rica')
 
