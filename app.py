@@ -4,38 +4,59 @@ import geopandas as gpd
 import plotly.express as px
 import streamlit as st
 from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 from owslib.wfs import WebFeatureService
 from io import BytesIO
 
 # Fuentes de datos
 
 DATOS_FIRMS = "data/incendios_2020-2024_costa_rica.csv"
+#DATOS_COBERTURA_2023 = "data/40meters.gpkg"
 
 st.title('Focos de calor (incendios) detectados en Costa Rica utilizando FIRMS (2020–2024)')
 st.write("— *Aplicación desarrollada por Roberto Méndez*")
 
 
-# Carga de datos
+# -------- Carga de datos
 
 def cargar_datos_incendios():
     # Carga con pandas
     datos = pd.read_csv(DATOS_FIRMS)
     return datos
+
+# def carga_cobertura_forestal():
+#     cobertura_forestal = gpd.read_file(DATOS_COBERTURA_2023).to_crs(epsg=4326)
+#     return cobertura_forestal
+
+def cargar_wfs(url, capa, version="1.1.0", epsg=4326):
+    """
+    Descarga una capa WFS y la retorna como GeoDataFrame con sistema de coords especificado.
+    url (str): URL WFS
+    capa (str): Nombre de la capa (typename)
+    version (str): Versión WFS (default 1.1.0)
+    epsg (int): Código EPSG (default 4326)
+    """
+    wfs = WebFeatureService(url=url, version=version)
+    respuesta = wfs.getfeature(typename=capa, outputFormat='application/json')
+    gdf = gpd.read_file(BytesIO(respuesta.read())).to_crs(epsg=epsg)
+    return gdf
+
+
 with st.spinner("*⏳ Carga de datos...*"):
     datos_incendios = cargar_datos_incendios()
+    #cobertura_forestal_2023 = carga_cobertura_forestal()
 
-    # Carga de Áreas de conservación de Costa Rica
-    # Conexión al servicio WFS
-    wfs_url = 'http://geos1pne.sirefor.go.cr/wfs'
-    wfs_version = '1.1.0'
-    wfs = WebFeatureService(url=wfs_url, version=wfs_version)
+    # Áreas de conservación
+    areas_conservacion_gdf = cargar_wfs(
+        url='http://geos1pne.sirefor.go.cr/wfs',
+        capa='PNE:areas_conservacion'
+    )
 
-    # Obtener la capa de áreas de conservación
-    capa = 'PNE:areas_conservacion'
-    respuesta = wfs.getfeature(typename=capa, outputFormat='application/json')
-
-    # Leer la respuesta en un GeoDataFrame y convertir a CRS 4326
-    areas_conservacion_gdf = gpd.read_file(BytesIO(respuesta.read())).to_crs(epsg=4326)
+    # Cantones
+    cantones_gdf = cargar_wfs(
+        url='https://geos.snitcr.go.cr/be/IGN_5_CO/wfs',
+        capa='IGN_5_CO:limitecantonal_5k'
+    )
 
 st.write("*Datos cargados ✅*")
 
@@ -66,8 +87,15 @@ with st.spinner("*⏳ Preparación de datos...*"):
         predicate="within"
     )
 
+    # datos_incendios_por_cobertura = gpd.sjoin(
+    #     datos_incendios_gdf,
+    #     cobertura_forestal_2023,
+    #     how="left",
+    #     predicate="within"
+    # )
+
     ## LATERAL
-    # Obtener la lista de países únicos
+    # Obtener lista de áreas de conservación
     lista_areas_conservacion = datos_incendios_por_area['nombre_ac'].unique().tolist()
     #lista_areas_conservacion.sort()
 
@@ -76,12 +104,12 @@ with st.spinner("*⏳ Preparación de datos...*"):
 
     # Crear el selectbox en la barra lateral
     area_seleccionada = st.sidebar.selectbox(
-        'Selecciona un país',
+        'Selecciona un área de conservación',
         opciones_areas
     )
 
     if area_seleccionada != 'Todos':
-        # Filtrar los datos para el país seleccionado
+        #Filtrar
         datos_filtrados = datos_incendios_por_area[datos_incendios_por_area['nombre_ac'] == area_seleccionada]
     else:
         # No aplicar filtro
@@ -112,9 +140,14 @@ with st.spinner("*⏳ Preparación de datos...*"):
     })
 st.write("*Datos listos ✅*")
 
+# --- Filtros ---
+# areas = sorted(df["area_conservacion"].dropna().unique())
+# cantones = sorted(df["canton"].dropna().unique())
 
+# filtro_area = st.selectbox("Filtrar por Área de Conservación", ["Todos"] + areas)
+# filtro_canton = st.selectbox("Filtrar por Cantón", ["Todos"] + cantones)
 
-## TABLA
+# ## TABLA
 st.subheader('Datos de focos de calor detectados (incendios) por área de conservación en Costa Rica (2020 - 2024)')
 st.dataframe(datos_incendios_por_area_tabla, hide_index=True)
 
@@ -176,7 +209,7 @@ with st.spinner("Cargando mapa, por favor espere..."):
     paleta_colores = linear.YlOrRd_09.scale(areas_merged['frecuencia'].min(), areas_merged['frecuencia'].max())
 
     mapa = folium.Map(
-        location=[9.7489, -83.7534], #Costa Ricac
+        location=[9.7489, -83.7534], #Costa Rica
         zoom_start=7
         )
 
@@ -201,6 +234,13 @@ with st.spinner("Cargando mapa, por favor espere..."):
             localize=True
             )
     ).add_to(mapa)
+
+
+    mapa_forestal = folium.Map(
+        location=[9.7489, -83.7534], #Costa Rica
+        zoom_start=7,
+    )
+    #folium.GeoJson(cobertura_forestal_2023).add_to(mapa)
 
     # Añadir la leyenda al mapa
     paleta_colores.caption = 'Cantidad de focos de calor detectados'
