@@ -18,7 +18,7 @@ st.write("— *Aplicación desarrollada por Roberto Méndez*")
 
 
 # -------- Carga de datos
-
+@st.cache_data
 def cargar_datos_incendios():
     # Carga con pandas
     datos = pd.read_csv(DATOS_FIRMS)
@@ -27,7 +27,7 @@ def cargar_datos_incendios():
 # def carga_cobertura_forestal():
 #     cobertura_forestal = gpd.read_file(DATOS_COBERTURA_2023).to_crs(epsg=4326)
 #     return cobertura_forestal
-
+@st.cache_data
 def cargar_wfs(url, capa, version="1.1.0", epsg=4326):
     """
     Descarga una capa WFS y la retorna como GeoDataFrame con sistema de coords especificado.
@@ -61,31 +61,38 @@ with st.spinner("*⏳ Carga de datos...*"):
 st.write("*Datos cargados ✅*")
 
 ### Organizacion de datos
+def sjoin_clean(left, right, how="left", predicate="intersects"):
+    out = gpd.sjoin(left, right, how=how, predicate=predicate)
+    return out.drop(columns=["index_right"], errors="ignore")
+
 with st.spinner("*⏳ Preparación de datos...*"):
+    @st.cache_data
+    def data_preparation():
+        ## Conversion de fechas
+        datos_incendios['acq_date'] = pd.to_datetime(datos_incendios['acq_date'])
+        datos_incendios['acq_time'] = datos_incendios['acq_time'].astype(str).str.zfill(4)
+        datos_incendios['complete_date'] = pd.to_datetime(
+            datos_incendios['acq_date'].dt.strftime('%Y-%m-%d') + ' ' +
+            datos_incendios['acq_time'].str[:2] + ':' +
+            datos_incendios['acq_time'].str[2:]
+        )
 
-    ## Conversion de fechas
-    datos_incendios['acq_date'] = pd.to_datetime(datos_incendios['acq_date'])
-    datos_incendios['acq_time'] = datos_incendios['acq_time'].astype(str).str.zfill(4)
-    datos_incendios['complete_date'] = pd.to_datetime(
-        datos_incendios['acq_date'].dt.strftime('%Y-%m-%d') + ' ' +
-        datos_incendios['acq_time'].str[:2] + ':' +
-        datos_incendios['acq_time'].str[2:]
-    )
+        # Conversión a GeoDataFrame
+        datos_incendios_gdf = gpd.GeoDataFrame(
+            datos_incendios,
+            geometry = gpd.points_from_xy(
+                datos_incendios["longitude"],
+                datos_incendios["latitude"]
+            ),
+            crs="EPSG:4326"
+        )
 
-    # Convertir datos de incendios a geodataframe
-    datos_incendios_gdf = gpd.GeoDataFrame(
-        datos_incendios,
-        geometry=gpd.points_from_xy(datos_incendios['longitude'], datos_incendios['latitude']),
-        crs="EPSG:4326"
-    )
+        # Uniones
+        datos_incendios_por_area = sjoin_clean(datos_incendios_gdf, areas_conservacion_gdf)
+        return sjoin_clean(datos_incendios_por_area, cantones_gdf).dropna(subset=["nombre_ac"])
 
-    # Unir incendios a las areas
-    datos_incendios_por_area = gpd.sjoin(
-        datos_incendios_gdf,
-        areas_conservacion_gdf,
-        how="left",
-        predicate="within"
-    )
+    datos_incendios_completo = data_preparation()
+
 
     # datos_incendios_por_cobertura = gpd.sjoin(
     #     datos_incendios_gdf,
@@ -96,11 +103,13 @@ with st.spinner("*⏳ Preparación de datos...*"):
 
     ## LATERAL
     # Obtener lista de áreas de conservación
-    lista_areas_conservacion = datos_incendios_por_area['nombre_ac'].unique().tolist()
+    lista_areas_conservacion = datos_incendios_completo['nombre_ac'].unique().tolist()
+    lista_cantones = datos_incendios_completo['CANTÓN'].unique().tolist()
     #lista_areas_conservacion.sort()
 
     # Añadir la opción "Todos" al inicio de la lista
     opciones_areas = ['Todos'] + lista_areas_conservacion
+    opciones_cantones = ['Todos'] + lista_cantones
 
     # Crear el selectbox en la barra lateral
     area_seleccionada = st.sidebar.selectbox(
@@ -108,12 +117,18 @@ with st.spinner("*⏳ Preparación de datos...*"):
         opciones_areas
     )
 
+    # Crear el selectbox en la barra lateral
+    canton_seleccionado = st.sidebar.selectbox(
+        'Selecciona un cantón',
+        opciones_cantones
+    )
+
     if area_seleccionada != 'Todos':
         #Filtrar
-        datos_filtrados = datos_incendios_por_area[datos_incendios_por_area['nombre_ac'] == area_seleccionada]
+        datos_filtrados = datos_incendios_completo[datos_incendios_completo['nombre_ac'] == area_seleccionada]
     else:
         # No aplicar filtro
-        datos_filtrados = datos_incendios_por_area.copy()
+        datos_filtrados = datos_incendios_completo.copy()
 
     # Columnas relevantes
     columnas = [
@@ -124,11 +139,12 @@ with st.spinner("*⏳ Preparación de datos...*"):
         'confidence',
         'frp',
         'daynight',
-        'nombre_ac'
+        'nombre_ac',
+        'CANTÓN'
     ]
-    datos_incendios_por_area_tabla = datos_filtrados[columnas]
+    datos_incendios_tabla = datos_filtrados[columnas]
 
-    datos_incendios_por_area_tabla = datos_incendios_por_area_tabla.rename(columns={
+    datos_incendios_tabla = datos_incendios_tabla.rename(columns={
         'complete_date': 'Fecha',
         'nombre_ac': 'Área de Conservación',
         'latitude': 'Latitud',
@@ -136,7 +152,8 @@ with st.spinner("*⏳ Preparación de datos...*"):
         'brightness': 'Brillo',
         'frp': 'FRP',
         'confidence': 'Confianza',
-        'daynight': 'Día/Noche'
+        'daynight': 'Día/Noche',
+        'CANTÓN': 'Cantón'
     })
 st.write("*Datos listos ✅*")
 
@@ -149,12 +166,12 @@ st.write("*Datos listos ✅*")
 
 # ## TABLA
 st.subheader('Datos de focos de calor detectados (incendios) por área de conservación en Costa Rica (2020 - 2024)')
-st.dataframe(datos_incendios_por_area_tabla, hide_index=True)
+st.dataframe(datos_incendios_tabla, hide_index=True)
 
 ### GRAFICO
 
 # Creación de columna para meses
-datos_incendios['month_num'] = datos_incendios['complete_date'].dt.month
+datos_filtrados['month_num'] = datos_filtrados['complete_date'].dt.month
 
 # Pasar numero de mes a texto
 # Se realiza de esta forma dado que month_name presenta un error 
@@ -166,11 +183,11 @@ traductor_meses = {
 }
 
 # Aplicar el mapeo para crear la columna 'Mes'
-datos_incendios['month'] = datos_incendios['month_num'].map(traductor_meses)
+datos_filtrados['month'] = datos_filtrados['month_num'].map(traductor_meses)
 
 
 # Conteo de focos de calor 
-frecuencia_mensual = datos_incendios.groupby(['month_num', 'month']).size().reset_index(name='Frecuencia')
+frecuencia_mensual = datos_filtrados.groupby(['month_num', 'month']).size().reset_index(name='Frecuencia')
 
 # Creacion de gráfico
 fig_incendios_mensual = px.line(
@@ -192,7 +209,7 @@ st.subheader('Mapa de cantidad de focos de calor en áreas de conservación de C
 
 with st.spinner("Cargando mapa, por favor espere..."):
     conteo_por_area = (
-        datos_incendios_por_area.groupby("nombre_ac")
+        datos_filtrados.groupby("nombre_ac")
         .size()
         .reset_index(name="frecuencia")
     )
