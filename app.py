@@ -256,11 +256,11 @@ with st.spinner("Cargando mapa, por favor espere..."):
 
     canton_map = canton_merged[["geometry", "CANTÓN", "frecuencia"]].copy()
 
-
-
     # Crear una paleta de colores
     from branca.colormap import linear
-    paleta_colores = linear.YlOrRd_09.scale(areas_merged['frecuencia'].min(), areas_merged['frecuencia'].max())
+    paleta_colores_areas = linear.YlOrRd_09.scale(areas_merged['frecuencia'].min(), areas_merged['frecuencia'].max())
+    paleta_colores_cantones = linear.YlOrRd_09.scale(canton_map['frecuencia'].min(), canton_map['frecuencia'].max())
+
 
     mapa = folium.Map(
         location=[9.7489, -83.7534], #Costa Rica
@@ -276,7 +276,7 @@ with st.spinner("Cargando mapa, por favor espere..."):
         areas_merged,
         name='Cantidad de focos de calor por área de conservación',
         style_function=lambda feature: {
-            'fillColor': paleta_colores(feature['properties']['frecuencia']),
+            'fillColor': paleta_colores_areas(feature['properties']['frecuencia']),
             'color': 'black',
             'weight': 0.5,
             'fillOpacity': 0.7,
@@ -293,11 +293,16 @@ with st.spinner("Cargando mapa, por favor espere..."):
             )
     ).add_to(mapa)
 
+    mapa_cantones = folium.Map(
+        location=[9.7489, -83.7534], #Costa Rica
+        zoom_start=7
+        )
+
     folium.GeoJson(
         canton_map,
         name='Cantidad de focos de calor por cantón',
         style_function=lambda feature: {
-            'fillColor': paleta_colores(feature['properties']['frecuencia']),
+            'fillColor': paleta_colores_cantones(feature['properties']['frecuencia']),
             'color': 'black',
             'weight': 0.5,
             'fillOpacity': 0.7,
@@ -312,17 +317,23 @@ with st.spinner("Cargando mapa, por favor espere..."):
             aliases=['Cantón: ', 'Cantidad de focos de calor detectados: '],
             localize=True
             )
-    ).add_to(mapa)
+    ).add_to(mapa_cantones)
 
     # Añadir la leyenda al mapa
-    paleta_colores.caption = 'Cantidad de focos de calor detectados'
-    paleta_colores.add_to(mapa)
+    paleta_colores_areas.caption = 'Cantidad de focos de calor detectados'
+    paleta_colores_areas.add_to(mapa)
+
+    # Añadir la leyenda al mapa
+    paleta_colores_cantones.caption = 'Cantidad de focos de calor detectados'
+    paleta_colores_cantones.add_to(mapa_cantones)
 
     # Agregar el control de capas al mapa
     folium.LayerControl().add_to(mapa)
+    folium.LayerControl().add_to(mapa_cantones)
 
     # Mostrar mapa forma antigua
     folium_static(mapa)
+    folium_static(mapa_cantones)
 
 
 
